@@ -1,0 +1,144 @@
+Red [
+	Description: {Red EBNF parser according to ISO 14977}
+]
+; Additional symbols
+WS: charset reduce [sp tab lf cr]
+WS+: [some WS]
+WS*: [any WS]
+WS?: [opt WS]
+
+
+repetition-symbol: #"*"
+except-symbol: #"-"
+concatenate-symbol: #","
+definition-separator-symbol: [#"|" | #"/" | #"!"]
+defining-symbol: #"=" ;| #":"]
+terminator-symbol: [#";" | #"."]
+
+first-quote-symbol: #"’"
+second-quote-symbol: #"^""
+start-comment-symbol: "(*"
+end-comment-symbol: "*)"
+start-group-symbol: #"("
+end-group-symbol: #")"
+start-option-symbol: [#"[" | "(/"]
+end-option-symbol: [#"]" | "/)"]
+start-repeat-symbol: [#"{" | "(:"]
+end-repeat-symbol: [#"}" | ":)"]
+special-sequence-symbol: #"?"
+
+remove-gaps: [
+	remove any gap-separator
+	gap-free-symbol
+	remove any gap-separator
+	any [
+		gap-free-symbol
+		remove any gap-separator
+	|	s: (print s) fail
+	]
+] 
+remove-comments: [
+	remove any bracketed-textual-comment
+	commentless-symbol
+	remove any bracketed-textual-comment
+	any [
+		commentless-symbol
+		remove any bracketed-textual-comment
+	|	s: (print s) fail
+	]
+]
+
+syntax: [some syntax-rule]
+syntax-rule: [meta-identifier defining-symbol definitions-list terminator-symbol | s: (print s) fail]
+
+meta-identifier: [letter any meta-identifier-character]
+meta-identifier-character: [letter | decimal-digit]
+
+letter: charset [#"a" - #"z" #"A" - #"Z"]
+
+definitions-list: [single-definition any [definition-separator-symbol single-definition]]
+
+single-definition: [syntactic-term any [concatenate-symbol syntactic-term]]
+syntactic-term: [syntactic-factor opt [except-symbol syntactic-exception]]
+syntactic-exception: [syntactic-factor] ;????? How to represent?
+syntactic-factor: [opt [integer repetition-symbol] syntactic-primary]
+integer: [some decimal-digit]
+decimal-digit: charset "0123456789"
+syntactic-primary: [
+	optional-sequence
+|	repeated-sequence
+| 	grouped-sequence
+|	meta-identifier
+|	terminal-string
+|	special-sequence
+|	empty-sequence
+]
+optional-sequence: [start-option-symbol definitions-list end-option-symbol]
+repeated-sequence: [start-repeat-symbol definitions-list end-repeat-symbol]
+grouped-sequence: [start-group-symbol definitions-list end-group-symbol]
+terminal-string: [
+	first-quote-symbol some first-terminal-character first-quote-symbol
+|	second-quote-symbol some second-terminal-character second-quote-symbol
+]
+first-terminal-character: [not first-quote-symbol terminal-character]
+second-terminal-character: [not second-quote-symbol terminal-character]
+special-sequence: [special-sequence-symbol any special-sequence-character special-sequence-symbol]
+special-sequence-character: [not special-sequence-symbol terminal-character]
+empty-sequence: [] ;?
+
+terminal-character: [
+	letter
+|	decimal-digit
+|	concatenate-symbol
+|	defining-symbol
+|	definition-separator-symbol
+|	end-comment-symbol
+|	end-group-symbol
+|	end-option-symbol
+|	end-repeat-symbol
+|	except-symbol
+|	first-quote-symbol
+|	repetition-symbol
+|	second-quote-symbol
+|	special-sequence-symbol
+|	start-comment-symbol
+|	start-group-symbol
+|	start-option-symbol
+|	start-repeat-symbol
+|	terminator-symbol
+|	other-character
+]
+
+other-character: charset " .:+_%@&#$<>\ˆ‘~" ;strict: " .:!+_%@&#$<>/\ˆ‘~"
+
+gap-free-symbol: [
+	terminal-string
+|	meta-identifier
+|	bracketed-textual-comment
+|	not [first-quote-symbol | second-quote-symbol] terminal-character
+]
+gap-separator: ws
+
+commentless-symbol: [
+	not [
+		letter
+	|	decimal-digit
+	|	first-quote-symbol
+	|	second-quote-symbol
+	|	start-comment-symbol
+	|	end-comment-symbol
+	|	special-sequence-symbol
+	|	other-character
+	] terminal-character
+|	meta-identifier
+|	integer
+|	terminal-string
+|	special-sequence
+]
+
+comment-symbol: [
+	bracketed-textual-comment
+|	commentless-symbol
+|	other-character
+]
+bracketed-textual-comment: [start-comment-symbol any comment-symbol end-comment-symbol]
